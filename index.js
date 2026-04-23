@@ -23,7 +23,7 @@ const client = new Client({
 });
 
 /* =========================
-   CONFIG UI
+   UI CONFIG (ENGLISH)
 ========================= */
 
 const CATEGORY_META = {
@@ -41,7 +41,7 @@ const RANDOM_META = {
 };
 
 /* =========================
-   CARGA DINÁMICA
+   LOAD DATA
 ========================= */
 
 let categorias = {};
@@ -61,7 +61,7 @@ files.forEach(file => {
 });
 
 /* =========================
-   ESTADO PERSISTENTE
+   STATE (PERSISTENT)
 ========================= */
 
 const STATE_FILE = "./state.json";
@@ -80,7 +80,7 @@ function saveState() {
 }
 
 /* =========================
-   UTILIDADES
+   UTILITIES
 ========================= */
 
 function safeText(text) {
@@ -94,7 +94,7 @@ function random(arr) {
 }
 
 /* =========================
-   LÓGICA ANTI-REPETICIÓN
+   ANTI-REPETITION
 ========================= */
 
 function obtenerPremio(categoria) {
@@ -136,7 +136,7 @@ function obtenerPremio(categoria) {
 }
 
 /* =========================
-   COMANDO /roulette
+   COMMAND
 ========================= */
 
 const command = new SlashCommandBuilder()
@@ -153,7 +153,7 @@ const rest = new REST({ version: "10" }).setToken(TOKEN);
 })();
 
 /* =========================
-   CREAR BOTONES UI
+   UI BUILDERS
 ========================= */
 
 function buildCategoryButtons() {
@@ -180,10 +180,6 @@ function buildCategoryButtons() {
   return [row1, row2];
 }
 
-/* =========================
-   CREAR BOTÓN REROLL
-========================= */
-
 function buildRerollButton(categoria) {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
@@ -194,24 +190,24 @@ function buildRerollButton(categoria) {
 }
 
 /* =========================
-   INTERACCIONES
+   INTERACTIONS
 ========================= */
 
 client.on("interactionCreate", async interaction => {
 
-  /* ===== /roulette ===== */
+  /* ===== COMMAND ===== */
   if (interaction.isChatInputCommand()) {
 
     if (interaction.commandName === "roulette") {
 
       await interaction.reply({
-        content: "🎯 **Selecciona una categoría**",
+        content: "🎯 **Select a category**",
         components: buildCategoryButtons()
       });
     }
   }
 
-  /* ===== BOTONES ===== */
+  /* ===== BUTTONS ===== */
   if (interaction.isButton()) {
 
     await interaction.deferUpdate();
@@ -237,12 +233,12 @@ client.on("interactionCreate", async interaction => {
     const meta = CATEGORY_META[categoria] || RANDOM_META;
 
     const embed = new EmbedBuilder()
-      .setTitle(`🎯 ${premio.titulo.es} / ${premio.titulo.en}`)
+      .setTitle(`🎯 ${premio.titulo.en} / ${premio.titulo.es}`)
       .setDescription(
-        `🇪🇸 ${safeText(premio.texto.es)}\n\n🇬🇧 ${safeText(premio.texto.en)}`
+        `🇬🇧 **English**\n${safeText(premio.texto.en)}\n\n🇪🇸 **Español**\n${safeText(premio.texto.es)}`
       )
       .setColor(meta.color)
-      .setFooter({ text: `Categoría: ${meta.label}` });
+      .setFooter({ text: `Category: ${meta.label}` });
 
     if (premio.imagen) {
       embed.setImage(premio.imagen);
@@ -261,7 +257,7 @@ client.on("interactionCreate", async interaction => {
 ========================= */
 
 client.once("ready", () => {
-  console.log(`🔥 UI PREMIUM lista como ${client.user.tag}`);
+  console.log(`🔥 PREMIUM BOT READY: ${client.user.tag}`);
 });
 
 client.login(TOKEN);
