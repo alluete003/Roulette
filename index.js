@@ -4,137 +4,274 @@ const {
   Client,
   GatewayIntentBits,
   SlashCommandBuilder,
+  REST,
   Routes,
-  REST
-} = require('discord.js');
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle
+} = require("discord.js");
 
-const mammoth = require("mammoth");
+const fs = require("fs");
 const http = require("http");
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds]
+});
 
+/* =========================
+   CONFIG UI
+========================= */
+
+const CATEGORY_META = {
+  domination: { label: "💀 Domination", color: 0xff2e63 },
+  fantasy: { label: "🧙 Fantasy", color: 0x6c5ce7 },
+  public: { label: "🌆 Public", color: 0x00b894 },
+  professionals: { label: "💼 Professionals", color: 0x0984e3 },
+  strangers: { label: "🎭 Strangers", color: 0xe17055 },
+  intimate: { label: "❤️ Intimate", color: 0xe84393 }
+};
+
+const RANDOM_META = {
+  label: "🎲 Random",
+  color: 0xf1c40f
+};
+
+/* =========================
+   CARGA DINÁMICA
+========================= */
+
+let categorias = {};
 let premios = [];
 
-// ===== CARGAR DOCX =====
-async function cargarDoc() {
-  try {
-    const result = await mammoth.extractRawText({ path: "./Juegos.docx" });
-    const text = result.value;
+const files = fs.readdirSync("./data");
 
-    const parts = text.split(/\n\s*\d+\.\s+/g).filter(Boolean);
+files.forEach(file => {
+  const categoria = file.replace(".json", "");
+  const data = JSON.parse(fs.readFileSync(`./data/${file}`));
 
-    premios = parts.map(p => {
-      const lines = p.trim().split(/\n+/);
-      return {
-        titulo: lines[0],
-        texto: lines.slice(1).join("\n")
-      };
-    });
+  categorias[categoria] = data;
 
-    console.log("✅ Premios cargados:", premios.length);
+  data.forEach(p => {
+    premios.push({ ...p, categoria });
+  });
+});
 
-  } catch (error) {
-    console.error("❌ Error cargando DOCX:", error);
-  }
+/* =========================
+   ESTADO PERSISTENTE
+========================= */
+
+const STATE_FILE = "./state.json";
+
+let state = {
+  usados_global: [],
+  usados_categoria: {}
+};
+
+if (fs.existsSync(STATE_FILE)) {
+  state = JSON.parse(fs.readFileSync(STATE_FILE));
 }
 
-// ===== DIVIDIR TEXTO =====
-function dividirTexto(texto, max = 1800) {
-  let partes = [];
-  let inicio = 0;
+function saveState() {
+  fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
+}
 
-  while (inicio < texto.length) {
-    let fin = inicio + max;
+/* =========================
+   UTILIDADES
+========================= */
 
-    if (fin < texto.length) {
-      let espacio = texto.lastIndexOf(" ", fin);
-      if (espacio > inicio) fin = espacio;
+function safeText(text) {
+  return text.length > 3900
+    ? text.slice(0, 3900) + "..."
+    : text;
+}
+
+function random(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+/* =========================
+   LÓGICA ANTI-REPETICIÓN
+========================= */
+
+function obtenerPremio(categoria) {
+
+  let pool = categoria ? categorias[categoria] : premios;
+
+  if (state.usados_global.length >= premios.length) {
+    state.usados_global = [];
+  }
+
+  if (categoria) {
+    if (!state.usados_categoria[categoria]) {
+      state.usados_categoria[categoria] = [];
     }
 
-    partes.push(texto.substring(inicio, fin));
-    inicio = fin;
+    if (state.usados_categoria[categoria].length >= pool.length) {
+      state.usados_categoria[categoria] = [];
+    }
   }
 
-  return partes;
+  const disponibles = pool.filter(p =>
+    !state.usados_global.includes(p.id) &&
+    !(categoria && state.usados_categoria[categoria].includes(p.id))
+  );
+
+  const elegido = disponibles.length > 0
+    ? random(disponibles)
+    : random(pool);
+
+  state.usados_global.push(elegido.id);
+
+  if (categoria) {
+    state.usados_categoria[categoria].push(elegido.id);
+  }
+
+  saveState();
+
+  return elegido;
 }
 
-// ===== COMANDO =====
+/* =========================
+   COMANDO /roulette
+========================= */
+
 const command = new SlashCommandBuilder()
-  .setName('roulette')
-  .setDescription('Spin the roulette');
+  .setName("roulette")
+  .setDescription("Spin the roulette");
 
-const rest = new REST({ version: '10' }).setToken(TOKEN);
+const rest = new REST({ version: "10" }).setToken(TOKEN);
 
-// Registrar comando
 (async () => {
-  try {
-    await rest.put(
-      Routes.applicationCommands(CLIENT_ID),
-      { body: [command.toJSON()] }
-    );
-    console.log("✅ Comando /roulette registrado");
-  } catch (err) {
-    console.error("❌ Error registrando comando:", err);
-  }
+  await rest.put(
+    Routes.applicationCommands(CLIENT_ID),
+    { body: [command.toJSON()] }
+  );
 })();
 
-// ===== INTERACCIONES =====
-client.on('interactionCreate', async interaction => {
+/* =========================
+   CREAR BOTONES UI
+========================= */
 
-  if (!interaction.isChatInputCommand()) return;
+function buildCategoryButtons() {
 
-  if (interaction.commandName === 'roulette') {
+  const botones = Object.keys(categorias).map(cat => {
+    const meta = CATEGORY_META[cat] || { label: cat };
 
-    if (!premios.length) {
-      return interaction.reply("⚠️ Los premios aún no están cargados.");
+    return new ButtonBuilder()
+      .setCustomId(`cat_${cat}`)
+      .setLabel(meta.label)
+      .setStyle(ButtonStyle.Primary);
+  });
+
+  botones.push(
+    new ButtonBuilder()
+      .setCustomId("cat_random")
+      .setLabel(RANDOM_META.label)
+      .setStyle(ButtonStyle.Success)
+  );
+
+  const row1 = new ActionRowBuilder().addComponents(botones.slice(0, 4));
+  const row2 = new ActionRowBuilder().addComponents(botones.slice(4, 8));
+
+  return [row1, row2];
+}
+
+/* =========================
+   CREAR BOTÓN REROLL
+========================= */
+
+function buildRerollButton(categoria) {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`reroll_${categoria}`)
+      .setLabel("🔁 Reroll")
+      .setStyle(ButtonStyle.Secondary)
+  );
+}
+
+/* =========================
+   INTERACCIONES
+========================= */
+
+client.on("interactionCreate", async interaction => {
+
+  /* ===== /roulette ===== */
+  if (interaction.isChatInputCommand()) {
+
+    if (interaction.commandName === "roulette") {
+
+      await interaction.reply({
+        content: "🎯 **Selecciona una categoría**",
+        components: buildCategoryButtons()
+      });
+    }
+  }
+
+  /* ===== BOTONES ===== */
+  if (interaction.isButton()) {
+
+    await interaction.deferUpdate();
+
+    let categoria;
+
+    if (interaction.customId.startsWith("cat_")) {
+
+      if (interaction.customId === "cat_random") {
+        categoria = random(Object.keys(categorias));
+      } else {
+        categoria = interaction.customId.replace("cat_", "");
+      }
+
+    } else if (interaction.customId.startsWith("reroll_")) {
+
+      categoria = interaction.customId.replace("reroll_", "");
+
+    } else return;
+
+    const premio = obtenerPremio(categoria);
+
+    const meta = CATEGORY_META[categoria] || RANDOM_META;
+
+    const embed = new EmbedBuilder()
+      .setTitle(`🎯 ${premio.titulo.es} / ${premio.titulo.en}`)
+      .setDescription(
+        `🇪🇸 ${safeText(premio.texto.es)}\n\n🇬🇧 ${safeText(premio.texto.en)}`
+      )
+      .setColor(meta.color)
+      .setFooter({ text: `Categoría: ${meta.label}` });
+
+    if (premio.imagen) {
+      embed.setImage(premio.imagen);
     }
 
-    await interaction.reply("🎡 Spinning...");
-
-    // pequeña animación
-    const estados = [
-      "🎡 Spinning...",
-      "🎡 Faster...",
-      "🎡 Slowing down...",
-      "🎯 Selecting..."
-    ];
-
-    for (let estado of estados) {
-      await new Promise(r => setTimeout(r, 400));
-      await interaction.editReply(estado);
-    }
-
-    const premio = premios[Math.floor(Math.random() * premios.length)];
-
-    const texto = `## 🎯 ${premio.titulo}\n\n${premio.texto}`;
-
-    const partes = dividirTexto(texto);
-
-    await interaction.editReply(partes[0]);
-
-    for (let i = 1; i < partes.length; i++) {
-      await interaction.followUp(partes[i]);
-    }
+    await interaction.editReply({
+      content: "",
+      embeds: [embed],
+      components: [buildRerollButton(categoria)]
+    });
   }
 });
 
-// ===== READY =====
-client.once('ready', async () => {
-  console.log(`🤖 Bot listo como ${client.user.tag}`);
-  await cargarDoc();
+/* =========================
+   READY
+========================= */
+
+client.once("ready", () => {
+  console.log(`🔥 UI PREMIUM lista como ${client.user.tag}`);
 });
 
 client.login(TOKEN);
 
-// ===== KEEP ALIVE (Railway) =====
+/* =========================
+   KEEP ALIVE
+========================= */
+
 const PORT = process.env.PORT || 3000;
 
 http.createServer((req, res) => {
-  res.write("OK");
-  res.end();
-}).listen(PORT, () => {
-  console.log("🌐 Keep alive activo en puerto", PORT);
-});
+  res.end("OK");
+}).listen(PORT);
