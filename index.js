@@ -23,11 +23,13 @@ const client = new Client({
 });
 
 /* =========================
-   UI CONFIG (ENGLISH)
+   UI CONFIG (CLEAN NAMES)
 ========================= */
 
 const CATEGORY_META = {
-  domination: { label: "💀 Domination", color: 0xff2e63 },
+  domination_aetel: { label: "💀 Domination (Aetel)", color: 0xff2e63 },
+  domination_txetxu: { label: "💀 Domination (Txetxu)", color: 0xff2e63 },
+
   fantasy: { label: "🧙 Fantasy", color: 0x6c5ce7 },
   public: { label: "🌆 Public", color: 0x00b894 },
   professionals: { label: "💼 Professionals", color: 0x0984e3 },
@@ -257,7 +259,7 @@ client.on("interactionCreate", async interaction => {
 ========================= */
 
 client.once("ready", () => {
-  console.log(`🔥 PREMIUM BOT READY: ${client.user.tag}`);
+  console.log(`🔥 BOT READY: ${client.user.tag}`);
 });
 
 client.login(TOKEN);
