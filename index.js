@@ -324,7 +324,7 @@ client.on("interactionCreate", async interaction => {
     await spinAnimationPro(interaction, categoria);
 
     const embed = new EmbedBuilder()
-      .setTitle(`🎯✨ ${premio.titulo.en} ✨`)
+      .setTitle(`🎯✨ ${premio.titulo.en} ✨\n🇪🇸 ${premio.titulo.es}`)
       .setAuthor({ name: "🎬 Cinematic Roulette" })
       .setDescription(
         `════════════════════\n\n` +
