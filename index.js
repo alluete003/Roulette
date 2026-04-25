@@ -97,35 +97,6 @@ function safeText(text) {
   return text.length > 3900 ? text.slice(0, 3900) + "..." : text;
 }
 
-/* =========================
-   CINEMATIC FORMAT
-========================= */
-
-function cinematicFormat(text, lang = "en") {
-
-  const mapEN = {
-    "THE SCENARIO:": "🎬 **THE SETTING**",
-    "THE SUBJECTS:": "👤 **THE SUBJECTS**",
-    "THE BEGINNING:": "🔥 **THE BEGINNING**"
-  };
-
-  const mapES = {
-    "EL ESCENARIO:": "🎬 **EL ESCENARIO**",
-    "LOS SUJETOS:": "👤 **LOS SUJETOS**",
-    "EL COMIENZO:": "🔥 **EL COMIENZO**"
-  };
-
-  const map = lang === "es" ? mapES : mapEN;
-
-  let formatted = text;
-
-  for (const key in map) {
-    const regex = new RegExp(key, "gi");
-    formatted = formatted.replace(regex, map[key]);
-  }
-
-  return formatted;
-}
 
 /* =========================
    ANTI-REPETITION
