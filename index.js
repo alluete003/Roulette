@@ -15,31 +15,25 @@ const {
 const fs = require("fs");
 const http = require("http");
 
-const TOKEN = process.env.TOKEN;
-const CLIENT_ID = process.env.CLIENT_ID;
-
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
 
+const TOKEN = process.env.TOKEN;
+const CLIENT_ID = process.env.CLIENT_ID;
+
 /* =========================
-   CATEGORY UI
+   CATEGORIES
 ========================= */
 
 const CATEGORY_META = {
   domination_aetel: { label: "💀 Domination (Aetel)", color: 0xff2e63 },
   domination_txetxu: { label: "💀 Domination (Txetxu)", color: 0xff2e63 },
-
   strangers: { label: "🎭 Strangers", color: 0xe17055 },
   professionals: { label: "💼 Professionals", color: 0x0984e3 },
   public: { label: "🌆 Public", color: 0x00b894 },
   fantasy: { label: "🧙 Fantasy", color: 0x6c5ce7 },
   intimate: { label: "❤️ Intimate", color: 0xe84393 }
-};
-
-const RANDOM_META = {
-  label: "🎲 Random",
-  color: 0xf1c40f
 };
 
 /* =========================
@@ -49,17 +43,12 @@ const RANDOM_META = {
 let categorias = {};
 let premios = [];
 
-const files = fs.readdirSync("./data");
-
-files.forEach(file => {
-  const categoria = file.replace(".json", "");
+fs.readdirSync("./data").forEach(file => {
+  const cat = file.replace(".json", "");
   const data = JSON.parse(fs.readFileSync(`./data/${file}`));
+  categorias[cat] = data;
 
-  categorias[categoria] = data;
-
-  data.forEach(p => {
-    premios.push({ ...p, categoria });
-  });
+  data.forEach(p => premios.push({ ...p, categoria: cat }));
 });
 
 /* =========================
@@ -85,55 +74,41 @@ function saveState() {
    UTIL
 ========================= */
 
-function sleep(ms) {
-  return new Promise(r => setTimeout(r, ms));
-}
-
-function random(arr) {
-  return arr[Math.floor(Math.random() * arr.length)];
-}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const random = arr => arr[Math.floor(Math.random() * arr.length)];
 
 function safeText(text) {
   return text.length > 3900 ? text.slice(0, 3900) + "..." : text;
 }
 
-
 /* =========================
    ANTI-REPETITION
 ========================= */
 
-function obtenerPremio(categoria) {
-
-  let pool = categoria ? categorias[categoria] : premios;
+function obtenerPremio(cat) {
+  const pool = cat ? categorias[cat] : premios;
 
   if (state.usados_global.length >= premios.length) {
     state.usados_global = [];
   }
 
-  if (categoria) {
-    if (!state.usados_categoria[categoria]) {
-      state.usados_categoria[categoria] = [];
-    }
+  if (cat) {
+    if (!state.usados_categoria[cat]) state.usados_categoria[cat] = [];
 
-    if (state.usados_categoria[categoria].length >= pool.length) {
-      state.usados_categoria[categoria] = [];
+    if (state.usados_categoria[cat].length >= pool.length) {
+      state.usados_categoria[cat] = [];
     }
   }
 
   const disponibles = pool.filter(p =>
     !state.usados_global.includes(p.id) &&
-    !(categoria && state.usados_categoria[categoria].includes(p.id))
+    !(cat && state.usados_categoria[cat].includes(p.id))
   );
 
-  const elegido = disponibles.length > 0
-    ? random(disponibles)
-    : random(pool);
+  const elegido = disponibles.length ? random(disponibles) : random(pool);
 
   state.usados_global.push(elegido.id);
-
-  if (categoria) {
-    state.usados_categoria[categoria].push(elegido.id);
-  }
+  if (cat) state.usados_categoria[cat].push(elegido.id);
 
   saveState();
 
@@ -141,46 +116,29 @@ function obtenerPremio(categoria) {
 }
 
 /* =========================
-   ANIMATION PRO
+   ANIMACIÓN SEGURA
 ========================= */
 
-async function spinAnimationPro(interaction, categoriaFinal) {
-
+async function spinAnimation(interaction, finalCat) {
   const keys = Object.keys(categorias);
 
   for (let i = 0; i < 5; i++) {
     const fake = random(keys);
-    const meta = CATEGORY_META[fake];
 
     await interaction.editReply({
       embeds: [
         new EmbedBuilder()
           .setTitle("🎰 Spinning...")
-          .setDescription(`⚡ ${meta.label}`)
+          .setDescription(`⚡ ${CATEGORY_META[fake].label}`)
           .setColor(0x888888)
-      ]
+      ],
+      components: []
     });
 
-    await sleep(70);
+    await sleep(80);
   }
 
-  for (let i = 0; i < 4; i++) {
-    const fake = random(keys);
-    const meta = CATEGORY_META[fake];
-
-    await interaction.editReply({
-      embeds: [
-        new EmbedBuilder()
-          .setTitle("🎰 Slowing down...")
-          .setDescription(`🌀 ${meta.label}`)
-          .setColor(0xbbbbbb)
-      ]
-    });
-
-    await sleep(120);
-  }
-
-  const almost = random(keys.filter(k => k !== categoriaFinal));
+  const almost = random(keys.filter(k => k !== finalCat));
 
   await interaction.editReply({
     embeds: [
@@ -188,7 +146,8 @@ async function spinAnimationPro(interaction, categoriaFinal) {
         .setTitle("🎰 Almost...")
         .setDescription(`❗ ${CATEGORY_META[almost].label}`)
         .setColor(0xffaa00)
-    ]
+    ],
+    components: []
   });
 
   await sleep(300);
@@ -197,9 +156,10 @@ async function spinAnimationPro(interaction, categoriaFinal) {
     embeds: [
       new EmbedBuilder()
         .setTitle("🛑 Stopping...")
-        .setDescription(`👉 ${CATEGORY_META[categoriaFinal].label}`)
-        .setColor(CATEGORY_META[categoriaFinal].color)
-    ]
+        .setDescription(`👉 ${CATEGORY_META[finalCat].label}`)
+        .setColor(CATEGORY_META[finalCat].color)
+    ],
+    components: []
   });
 
   await sleep(400);
@@ -226,29 +186,28 @@ const rest = new REST({ version: "10" }).setToken(TOKEN);
    BUTTONS
 ========================= */
 
-function buildCategoryButtons() {
-
-  const botones = Object.keys(categorias).map(cat => {
-    return new ButtonBuilder()
+function categoryButtons() {
+  const btns = Object.keys(categorias).map(cat =>
+    new ButtonBuilder()
       .setCustomId(`cat_${cat}`)
       .setLabel(CATEGORY_META[cat].label)
-      .setStyle(ButtonStyle.Primary);
-  });
+      .setStyle(ButtonStyle.Primary)
+  );
 
-  botones.push(
+  btns.push(
     new ButtonBuilder()
       .setCustomId("cat_random")
-      .setLabel(RANDOM_META.label)
+      .setLabel("🎲 Random")
       .setStyle(ButtonStyle.Success)
   );
 
   return [
-    new ActionRowBuilder().addComponents(botones.slice(0, 4)),
-    new ActionRowBuilder().addComponents(botones.slice(4, 8))
+    new ActionRowBuilder().addComponents(btns.slice(0, 4)),
+    new ActionRowBuilder().addComponents(btns.slice(4))
   ];
 }
 
-function buildRerollButton(cat) {
+function rerollButton(cat) {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId(`reroll_${cat}`)
@@ -267,7 +226,7 @@ client.on("interactionCreate", async interaction => {
     if (interaction.commandName === "roulette") {
       await interaction.reply({
         content: "🎯 Select a category",
-        components: buildCategoryButtons()
+        components: categoryButtons()
       });
     }
   }
@@ -276,42 +235,35 @@ client.on("interactionCreate", async interaction => {
 
     await interaction.deferReply();
 
-    let categoria;
+    let cat;
 
-    if (interaction.customId.startsWith("cat_")) {
-      categoria = interaction.customId === "cat_random"
-        ? random(Object.keys(categorias))
-        : interaction.customId.replace("cat_", "");
+    if (interaction.customId === "cat_random") {
+      cat = random(Object.keys(categorias));
+    } else if (interaction.customId.startsWith("cat_")) {
+      cat = interaction.customId.replace("cat_", "");
+    } else if (interaction.customId.startsWith("reroll_")) {
+      cat = interaction.customId.replace("reroll_", "");
     }
 
-    if (interaction.customId.startsWith("reroll_")) {
-      categoria = interaction.customId.replace("reroll_", "");
-    }
+    if (!cat) return;
 
-    if (!categoria) return;
+    const premio = obtenerPremio(cat);
 
-    const premio = obtenerPremio(categoria);
-
-    await spinAnimationPro(interaction, categoria);
+    await spinAnimation(interaction, cat);
 
     const embed = new EmbedBuilder()
       .setTitle(`🎯✨ ${premio.titulo.en} ✨\n🇪🇸 ${premio.titulo.es}`)
-      .setAuthor({ name: "🎬 Cinematic Roulette" })
       .setDescription(
-        `════════════════════\n\n` +
-        `${cinematicFormat(safeText(premio.texto.en), "en")}\n\n` +
-        `════════════════════\n\n` +
-        `🇪🇸 **ESPAÑOL**\n\n` +
-        `${cinematicFormat(safeText(premio.texto.es), "es")}`
+        `${safeText(premio.texto.en)}\n\n──────────────\n\n🇪🇸\n${safeText(premio.texto.es)}`
       )
-      .setColor(CATEGORY_META[categoria].color)
-      .setFooter({ text: CATEGORY_META[categoria].label });
+      .setColor(CATEGORY_META[cat].color)
+      .setFooter({ text: CATEGORY_META[cat].label });
 
     if (premio.imagen) embed.setImage(premio.imagen);
 
     await interaction.editReply({
       embeds: [embed],
-      components: [buildRerollButton(categoria)]
+      components: [rerollButton(cat)]
     });
   }
 });
