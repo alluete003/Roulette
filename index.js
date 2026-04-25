@@ -23,7 +23,7 @@ const client = new Client({
 });
 
 /* =========================
-   UI CONFIG (CLEAN NAMES)
+   UI CONFIG
 ========================= */
 
 const CATEGORY_META = {
@@ -63,7 +63,7 @@ files.forEach(file => {
 });
 
 /* =========================
-   STATE (PERSISTENT)
+   STATE
 ========================= */
 
 const STATE_FILE = "./state.json";
@@ -82,8 +82,12 @@ function saveState() {
 }
 
 /* =========================
-   UTILITIES
+   UTIL
 ========================= */
+
+function sleep(ms) {
+  return new Promise(r => setTimeout(r, ms));
+}
 
 function safeText(text) {
   return text.length > 3900
@@ -159,7 +163,6 @@ const rest = new REST({ version: "10" }).setToken(TOKEN);
 ========================= */
 
 function buildCategoryButtons() {
-
   const botones = Object.keys(categorias).map(cat => {
     const meta = CATEGORY_META[cat] || { label: cat };
 
@@ -176,10 +179,10 @@ function buildCategoryButtons() {
       .setStyle(ButtonStyle.Success)
   );
 
-  const row1 = new ActionRowBuilder().addComponents(botones.slice(0, 4));
-  const row2 = new ActionRowBuilder().addComponents(botones.slice(4, 8));
-
-  return [row1, row2];
+  return [
+    new ActionRowBuilder().addComponents(botones.slice(0, 4)),
+    new ActionRowBuilder().addComponents(botones.slice(4, 8))
+  ];
 }
 
 function buildRerollButton(categoria) {
@@ -192,12 +195,83 @@ function buildRerollButton(categoria) {
 }
 
 /* =========================
+   🎰 ANIMACIÓN PRO
+========================= */
+
+async function spinAnimationPro(interaction, categoriaFinal) {
+
+  const keys = Object.keys(categorias);
+
+  // FAST
+  for (let i = 0; i < 5; i++) {
+    const fake = random(keys);
+    const meta = CATEGORY_META[fake] || { label: fake };
+
+    await interaction.editReply({
+      embeds: [
+        new EmbedBuilder()
+          .setTitle("🎰 Spinning...")
+          .setDescription(`⚡ ${meta.label}`)
+          .setColor(0x888888)
+      ]
+    });
+
+    await sleep(70);
+  }
+
+  // MEDIUM
+  for (let i = 0; i < 4; i++) {
+    const fake = random(keys);
+    const meta = CATEGORY_META[fake] || { label: fake };
+
+    await interaction.editReply({
+      embeds: [
+        new EmbedBuilder()
+          .setTitle("🎰 Slowing down...")
+          .setDescription(`🌀 ${meta.label}`)
+          .setColor(0xbbbbbb)
+      ]
+    });
+
+    await sleep(120);
+  }
+
+  // NEAR MISS
+  const almost = random(keys.filter(k => k !== categoriaFinal));
+  const almostMeta = CATEGORY_META[almost] || { label: almost };
+
+  await interaction.editReply({
+    embeds: [
+      new EmbedBuilder()
+        .setTitle("🎰 Almost...")
+        .setDescription(`❗ ${almostMeta.label}`)
+        .setColor(0xffaa00)
+    ]
+  });
+
+  await sleep(300);
+
+  // FINAL STOP
+  const finalMeta = CATEGORY_META[categoriaFinal] || { label: categoriaFinal };
+
+  await interaction.editReply({
+    embeds: [
+      new EmbedBuilder()
+        .setTitle("🛑 Stopping...")
+        .setDescription(`👉 ${finalMeta.label}`)
+        .setColor(finalMeta.color)
+    ]
+  });
+
+  await sleep(400);
+}
+
+/* =========================
    INTERACTIONS
 ========================= */
 
 client.on("interactionCreate", async interaction => {
 
-  /* ===== COMMAND ===== */
   if (interaction.isChatInputCommand()) {
 
     if (interaction.commandName === "roulette") {
@@ -209,10 +283,9 @@ client.on("interactionCreate", async interaction => {
     }
   }
 
-  /* ===== BUTTONS ===== */
   if (interaction.isButton()) {
 
-    await interaction.deferUpdate();
+    await interaction.deferReply();
 
     let categoria;
 
@@ -230,12 +303,16 @@ client.on("interactionCreate", async interaction => {
 
     } else return;
 
+    // RESULT FIRST
     const premio = obtenerPremio(categoria);
+
+    // ANIMATION
+    await spinAnimationPro(interaction, categoria);
 
     const meta = CATEGORY_META[categoria] || RANDOM_META;
 
     const embed = new EmbedBuilder()
-      .setTitle(`🎯 ${premio.titulo.en} / ${premio.titulo.es}`)
+      .setTitle(`🎯✨ ${premio.titulo.en} ✨`)
       .setDescription(
         `🇬🇧 **English**\n${safeText(premio.texto.en)}\n\n🇪🇸 **Español**\n${safeText(premio.texto.es)}`
       )
@@ -247,7 +324,6 @@ client.on("interactionCreate", async interaction => {
     }
 
     await interaction.editReply({
-      content: "",
       embeds: [embed],
       components: [buildRerollButton(categoria)]
     });
