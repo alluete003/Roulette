@@ -23,17 +23,17 @@ const client = new Client({
 });
 
 /* =========================
-   UI CONFIG
+   CATEGORY UI
 ========================= */
 
 const CATEGORY_META = {
   domination_aetel: { label: "💀 Domination (Aetel)", color: 0xff2e63 },
   domination_txetxu: { label: "💀 Domination (Txetxu)", color: 0xff2e63 },
 
-  fantasy: { label: "🧙 Fantasy", color: 0x6c5ce7 },
-  public: { label: "🌆 Public", color: 0x00b894 },
-  professionals: { label: "💼 Professionals", color: 0x0984e3 },
   strangers: { label: "🎭 Strangers", color: 0xe17055 },
+  professionals: { label: "💼 Professionals", color: 0x0984e3 },
+  public: { label: "🌆 Public", color: 0x00b894 },
+  fantasy: { label: "🧙 Fantasy", color: 0x6c5ce7 },
   intimate: { label: "❤️ Intimate", color: 0xe84393 }
 };
 
@@ -89,14 +89,42 @@ function sleep(ms) {
   return new Promise(r => setTimeout(r, ms));
 }
 
-function safeText(text) {
-  return text.length > 3900
-    ? text.slice(0, 3900) + "..."
-    : text;
-}
-
 function random(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function safeText(text) {
+  return text.length > 3900 ? text.slice(0, 3900) + "..." : text;
+}
+
+/* =========================
+   CINEMATIC FORMAT
+========================= */
+
+function cinematicFormat(text, lang = "en") {
+
+  const mapEN = {
+    "THE SCENARIO:": "🎬 **THE SETTING**",
+    "THE SUBJECTS:": "👤 **THE SUBJECTS**",
+    "THE BEGINNING:": "🔥 **THE BEGINNING**"
+  };
+
+  const mapES = {
+    "EL ESCENARIO:": "🎬 **EL ESCENARIO**",
+    "LOS SUJETOS:": "👤 **LOS SUJETOS**",
+    "EL COMIENZO:": "🔥 **EL COMIENZO**"
+  };
+
+  const map = lang === "es" ? mapES : mapEN;
+
+  let formatted = text;
+
+  for (const key in map) {
+    const regex = new RegExp(key, "gi");
+    formatted = formatted.replace(regex, map[key]);
+  }
+
+  return formatted;
 }
 
 /* =========================
@@ -142,6 +170,71 @@ function obtenerPremio(categoria) {
 }
 
 /* =========================
+   ANIMATION PRO
+========================= */
+
+async function spinAnimationPro(interaction, categoriaFinal) {
+
+  const keys = Object.keys(categorias);
+
+  for (let i = 0; i < 5; i++) {
+    const fake = random(keys);
+    const meta = CATEGORY_META[fake];
+
+    await interaction.editReply({
+      embeds: [
+        new EmbedBuilder()
+          .setTitle("🎰 Spinning...")
+          .setDescription(`⚡ ${meta.label}`)
+          .setColor(0x888888)
+      ]
+    });
+
+    await sleep(70);
+  }
+
+  for (let i = 0; i < 4; i++) {
+    const fake = random(keys);
+    const meta = CATEGORY_META[fake];
+
+    await interaction.editReply({
+      embeds: [
+        new EmbedBuilder()
+          .setTitle("🎰 Slowing down...")
+          .setDescription(`🌀 ${meta.label}`)
+          .setColor(0xbbbbbb)
+      ]
+    });
+
+    await sleep(120);
+  }
+
+  const almost = random(keys.filter(k => k !== categoriaFinal));
+
+  await interaction.editReply({
+    embeds: [
+      new EmbedBuilder()
+        .setTitle("🎰 Almost...")
+        .setDescription(`❗ ${CATEGORY_META[almost].label}`)
+        .setColor(0xffaa00)
+    ]
+  });
+
+  await sleep(300);
+
+  await interaction.editReply({
+    embeds: [
+      new EmbedBuilder()
+        .setTitle("🛑 Stopping...")
+        .setDescription(`👉 ${CATEGORY_META[categoriaFinal].label}`)
+        .setColor(CATEGORY_META[categoriaFinal].color)
+    ]
+  });
+
+  await sleep(400);
+}
+
+/* =========================
    COMMAND
 ========================= */
 
@@ -159,16 +252,15 @@ const rest = new REST({ version: "10" }).setToken(TOKEN);
 })();
 
 /* =========================
-   UI BUILDERS
+   BUTTONS
 ========================= */
 
 function buildCategoryButtons() {
-  const botones = Object.keys(categorias).map(cat => {
-    const meta = CATEGORY_META[cat] || { label: cat };
 
+  const botones = Object.keys(categorias).map(cat => {
     return new ButtonBuilder()
       .setCustomId(`cat_${cat}`)
-      .setLabel(meta.label)
+      .setLabel(CATEGORY_META[cat].label)
       .setStyle(ButtonStyle.Primary);
   });
 
@@ -185,85 +277,13 @@ function buildCategoryButtons() {
   ];
 }
 
-function buildRerollButton(categoria) {
+function buildRerollButton(cat) {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setCustomId(`reroll_${categoria}`)
+      .setCustomId(`reroll_${cat}`)
       .setLabel("🔁 Reroll")
       .setStyle(ButtonStyle.Secondary)
   );
-}
-
-/* =========================
-   🎰 ANIMACIÓN PRO
-========================= */
-
-async function spinAnimationPro(interaction, categoriaFinal) {
-
-  const keys = Object.keys(categorias);
-
-  // FAST
-  for (let i = 0; i < 5; i++) {
-    const fake = random(keys);
-    const meta = CATEGORY_META[fake] || { label: fake };
-
-    await interaction.editReply({
-      embeds: [
-        new EmbedBuilder()
-          .setTitle("🎰 Spinning...")
-          .setDescription(`⚡ ${meta.label}`)
-          .setColor(0x888888)
-      ]
-    });
-
-    await sleep(70);
-  }
-
-  // MEDIUM
-  for (let i = 0; i < 4; i++) {
-    const fake = random(keys);
-    const meta = CATEGORY_META[fake] || { label: fake };
-
-    await interaction.editReply({
-      embeds: [
-        new EmbedBuilder()
-          .setTitle("🎰 Slowing down...")
-          .setDescription(`🌀 ${meta.label}`)
-          .setColor(0xbbbbbb)
-      ]
-    });
-
-    await sleep(120);
-  }
-
-  // NEAR MISS
-  const almost = random(keys.filter(k => k !== categoriaFinal));
-  const almostMeta = CATEGORY_META[almost] || { label: almost };
-
-  await interaction.editReply({
-    embeds: [
-      new EmbedBuilder()
-        .setTitle("🎰 Almost...")
-        .setDescription(`❗ ${almostMeta.label}`)
-        .setColor(0xffaa00)
-    ]
-  });
-
-  await sleep(300);
-
-  // FINAL STOP
-  const finalMeta = CATEGORY_META[categoriaFinal] || { label: categoriaFinal };
-
-  await interaction.editReply({
-    embeds: [
-      new EmbedBuilder()
-        .setTitle("🛑 Stopping...")
-        .setDescription(`👉 ${finalMeta.label}`)
-        .setColor(finalMeta.color)
-    ]
-  });
-
-  await sleep(400);
 }
 
 /* =========================
@@ -273,11 +293,9 @@ async function spinAnimationPro(interaction, categoriaFinal) {
 client.on("interactionCreate", async interaction => {
 
   if (interaction.isChatInputCommand()) {
-
     if (interaction.commandName === "roulette") {
-
       await interaction.reply({
-        content: "🎯 **Select a category**",
+        content: "🎯 Select a category",
         components: buildCategoryButtons()
       });
     }
@@ -290,38 +308,35 @@ client.on("interactionCreate", async interaction => {
     let categoria;
 
     if (interaction.customId.startsWith("cat_")) {
+      categoria = interaction.customId === "cat_random"
+        ? random(Object.keys(categorias))
+        : interaction.customId.replace("cat_", "");
+    }
 
-      if (interaction.customId === "cat_random") {
-        categoria = random(Object.keys(categorias));
-      } else {
-        categoria = interaction.customId.replace("cat_", "");
-      }
-
-    } else if (interaction.customId.startsWith("reroll_")) {
-
+    if (interaction.customId.startsWith("reroll_")) {
       categoria = interaction.customId.replace("reroll_", "");
+    }
 
-    } else return;
+    if (!categoria) return;
 
-    // RESULT FIRST
     const premio = obtenerPremio(categoria);
 
-    // ANIMATION
     await spinAnimationPro(interaction, categoria);
-
-    const meta = CATEGORY_META[categoria] || RANDOM_META;
 
     const embed = new EmbedBuilder()
       .setTitle(`🎯✨ ${premio.titulo.en} ✨`)
+      .setAuthor({ name: "🎬 Cinematic Roulette" })
       .setDescription(
-        `🇬🇧 **English**\n${safeText(premio.texto.en)}\n\n🇪🇸 **Español**\n${safeText(premio.texto.es)}`
+        `════════════════════\n\n` +
+        `${cinematicFormat(safeText(premio.texto.en), "en")}\n\n` +
+        `════════════════════\n\n` +
+        `🇪🇸 **ESPAÑOL**\n\n` +
+        `${cinematicFormat(safeText(premio.texto.es), "es")}`
       )
-      .setColor(meta.color)
-      .setFooter({ text: `Category: ${meta.label}` });
+      .setColor(CATEGORY_META[categoria].color)
+      .setFooter({ text: CATEGORY_META[categoria].label });
 
-    if (premio.imagen) {
-      embed.setImage(premio.imagen);
-    }
+    if (premio.imagen) embed.setImage(premio.imagen);
 
     await interaction.editReply({
       embeds: [embed],
@@ -334,7 +349,7 @@ client.on("interactionCreate", async interaction => {
    READY
 ========================= */
 
-client.once("ready", () => {
+client.once("clientReady", () => {
   console.log(`🔥 BOT READY: ${client.user.tag}`);
 });
 
